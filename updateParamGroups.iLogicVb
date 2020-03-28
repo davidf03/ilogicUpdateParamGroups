@@ -1,35 +1,40 @@
 ﻿Option Explicit On
 Imports Inventor.ObjectTypeEnum
 Imports System.Text.RegularExpressions
+Public Sub Main()
+	
+	Dim oUpdateParamGroup As updateParamGroup = New updateParamGroup()	
+End Sub
 
-Private Class updateParamGroup
-	Private doc As Document
+Public Class updateParamGroup
+	
 	Private oParams As Parameters
 	Private paramGroups As CustomParameterGroups
-
 	Private groupNameDelimiter As String = ":"
 	Private initialName As String
 
-	Private Sub Main()
+	Public Sub New()
 		addEventHandler()
 	End Sub
 
-	Private Sub oModelEvent_ParameterChange(
-		DocumentObject As _Document,
+	Private Sub oModelingEvents_ParameterChange(
+		oDoc As Inventor.Document,
 		Parameter As Parameter,
 		BeforeOrAfter As EventTimingEnum,
 		Context As NameValueMap,
 		ByRef HandlingCode As HandlingCodeEnum
 	)
+	
 		If BeforeOrAfter = kBefore Then
 			initialName = Parameter.Name
-			getDocumentMembers()
-			Return
+			getDocumentMembers(oDoc)
+			'MsgBox("The event has fired, BeforeOrAfter = kBefore")
 		Else If Not BeforeOrAfter = kAfter Then
-			Return
+			'MsgBox("The event has fired, BeforeOrAfter = kAfter")
+			Exit Sub
 		End If
 		
-		InventorVB.DocumentUpdate()
+		oDoc.Update()
 
 		Dim name = Parameter.Name
 		Dim groupName As String = parseGroupName(name)
@@ -52,27 +57,24 @@ Private Class updateParamGroup
 	End Sub
 
 	Private Sub addEventHandler()
-		Dim oModelEvent As ModelingEvents
-		oModelEvent = ThisApplication.ModelingEvents
-		AddHandler oModelEvent.OnParameterChange, AddressOf oModelEvent_ParameterChange
+		Dim oModelingEvents As ModelingEvents = InventorApp.Application.ModelingEvents
+		AddHandler oModelingEvents.OnParameterChange, AddressOf oModelingEvents_ParameterChange
 		MessageBox.Show("Listening for parameter group changes")
 	End Sub
 
 	Private Sub removeEventHandler()
-		Dim oModelEvent As ModelingEvents
-		oModelEvent = ThisApplication.ModelingEvents
-		RemoveHandler oModelEvent.OnParameterChange, AddressOf oModelEvent_ParameterChange
+		Dim oModelingEvents As ModelingEvents = InventorApp.Application.ModelingEvents
+		RemoveHandler oModelingEvents.OnParameterChange, AddressOf oModelingEvents_ParameterChange
 	End Sub
 
-	Private Sub getDocumentMembers()
-		doc = ThisDoc.Document
+	Private Sub getDocumentMembers(doc As Inventor.Document)
 		Select Case doc.DocumentType
-		Case kPartDocumentObject, kAssemblyDocumentObject
-			oParams = doc.ComponentDefinition.Parameters
-		Case kDrawingDocumentObject
-			oParams = doc.Parameters
-		Case Else
-			Throw New NotImplementedException
+			Case kPartDocumentObject, kAssemblyDocumentObject
+				oParams = doc.ComponentDefinition.Parameters
+			Case kDrawingDocumentObject
+				oParams = doc.Parameters
+			Case Else
+				Throw New NotImplementedException
 		End Select
 		paramGroups = oParams.CustomParameterGroups
 	End Sub
@@ -130,4 +132,12 @@ Private Class updateParamGroup
 		Dim paramName As String = Regex.Matches(name, paramNameRegex)(0).Value
 		Return paramName
 	End Function
+End Class
+
+
+''' <summary>
+''' This object is a shared class pointing to the Inventor.Application object.
+''' </summary>
+Public Class InventorApp
+    Public Shared Property Application As Inventor.Application = GetObject(, "Inventor.Application")
 End Class
