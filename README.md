@@ -1,5 +1,5 @@
 # Update Param Groups
-iLogic script to update parameter groups as automatically.
+iLogic script to update parameter groups automatically.
 
 This script automatically creates and deletes parameter groups based on the presence of 'group' prefixes added to parameter names, in the format `group:parameterName`.
 
