@@ -26,12 +26,12 @@ Public Class updateParamGroup
 	)
 	
 		If BeforeOrAfter = kBefore Then
-			initialName = Parameter.Name
-			getDocumentMembers(oDoc)
+			Exit Sub
 			'MsgBox("The event has fired, BeforeOrAfter = kBefore")
 		Else If Not BeforeOrAfter = kAfter Then
 			'MsgBox("The event has fired, BeforeOrAfter = kAfter")
-			Exit Sub
+			initialName = Parameter.Name
+			getDocumentMembers(oDoc)
 		End If
 		
 		oDoc.Update()
