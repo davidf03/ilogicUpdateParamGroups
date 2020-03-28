@@ -1,0 +1,133 @@
+﻿Option Explicit On
+Imports Inventor.ObjectTypeEnum
+Imports System.Text.RegularExpressions
+
+Private Class updateParamGroup
+	Private doc As Document
+	Private oParams As Parameters
+	Private paramGroups As CustomParameterGroups
+
+	Private groupNameDelimiter As String = ":"
+	Private initialName As String
+
+	Private Sub Main()
+		addEventHandler()
+	End Sub
+
+	Private Sub oModelEvent_ParameterChange(
+		DocumentObject As _Document,
+		Parameter As Parameter,
+		BeforeOrAfter As EventTimingEnum,
+		Context As NameValueMap,
+		ByRef HandlingCode As HandlingCodeEnum
+	)
+		If BeforeOrAfter = kBefore Then
+			initialName = Parameter.Name
+			getDocumentMembers()
+			Return
+		Else If Not BeforeOrAfter = kAfter Then
+			Return
+		End If
+		
+		InventorVB.DocumentUpdate()
+
+		Dim name = Parameter.Name
+		Dim groupName As String = parseGroupName(name)
+		Dim initialGroupName As String = parseGroupName(initialName)
+		If groupName = initialGroupName
+			Return
+		End If
+
+		Try
+			Dim initialGroup As CustomParameterGroup = paramGroups.Item(initialGroupName)
+			removeParamFromGroup(name, initialGroup)
+			deleteEmptyGroup(initialGroup)
+		Catch ex As ArgumentException
+		End Try
+
+		Dim group As CustomParameterGroup = addGroup(groupName)
+		addParamToGroup(name, Group )
+		
+		MessageBox.Show("Changed group `" & initialGroupName & "` to `" & groupName & "` for parameter `" & parseParamName(name) & "`")
+	End Sub
+
+	Private Sub addEventHandler()
+		Dim oModelEvent As ModelingEvents
+		oModelEvent = ThisApplication.ModelingEvents
+		AddHandler oModelEvent.OnParameterChange, AddressOf oModelEvent_ParameterChange
+		MessageBox.Show("Listening for parameter group changes")
+	End Sub
+
+	Private Sub removeEventHandler()
+		Dim oModelEvent As ModelingEvents
+		oModelEvent = ThisApplication.ModelingEvents
+		RemoveHandler oModelEvent.OnParameterChange, AddressOf oModelEvent_ParameterChange
+	End Sub
+
+	Private Sub getDocumentMembers()
+		doc = ThisDoc.Document
+		Select Case doc.DocumentType
+		Case kPartDocumentObject, kAssemblyDocumentObject
+			oParams = doc.ComponentDefinition.Parameters
+		Case kDrawingDocumentObject
+			oParams = doc.Parameters
+		Case Else
+			Throw New NotImplementedException
+		End Select
+		paramGroups = oParams.CustomParameterGroups
+	End Sub
+
+	Private Sub removeParamFromGroup(name as String, group as CustomParameterGroup)
+		Try
+			Dim paramList As IEnumerator = group.GetEnumerator()
+			Dim param As Parameter
+			For i As Integer = 0 To group.Count Step 1
+				paramList.MoveNext()
+				If paramList.Current.Name = name
+					group.Remove(i + 1)
+					Exit For
+				End If
+			Next
+		Catch ex As ArgumentException
+		End Try
+	End Sub
+
+	Private Sub deleteEmptyGroup(group as CustomParameterGroup)
+		Try
+			If Not group.Count > 0
+				group.Delete()
+			End If
+		Catch ex As ArgumentException
+		End Try
+	End Sub
+
+	Private Function addGroup(groupName as String)
+		Dim group as CustomParameterGroup
+		Try
+			group = paramGroups.Item(groupName)
+		Catch ex As ArgumentException
+			group = paramGroups.Add(groupName, groupName)
+		End Try
+		Return group
+	End Function
+
+	Private Sub addParamToGroup(name as String, group as CustomParameterGroup)
+		Try
+			Dim oParam As Parameter = oParams(name)
+			group.Add(oParam)
+		Catch ex As ArgumentException
+		End Try
+	End Sub
+
+	Private Function parseGroupName(name As String)
+		Dim groupNameRegex As String = "^.+?(?=" & groupNameDelimiter & ")"
+		Dim groupName As String = Regex.Matches(name, groupNameRegex)(0).Value
+		Return groupName
+	End Function
+
+	Private Function parseParamName(name As String)
+		Dim paramNameRegex As String = "(?<=^.+?" & groupNameDelimiter & ").+"
+		Dim paramName As String = Regex.Matches(name, paramNameRegex)(0).Value
+		Return paramName
+	End Function
+End Class
