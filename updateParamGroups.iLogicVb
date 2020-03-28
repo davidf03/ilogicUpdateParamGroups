@@ -80,7 +80,6 @@ Private Class updateParamGroup
 	Private Sub removeParamFromGroup(name as String, group as CustomParameterGroup)
 		Try
 			Dim paramList As IEnumerator = group.GetEnumerator()
-			Dim param As Parameter
 			For i As Integer = 0 To group.Count Step 1
 				paramList.MoveNext()
 				If paramList.Current.Name = name
