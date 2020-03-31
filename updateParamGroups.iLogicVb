@@ -81,16 +81,16 @@ Public Class updateParamGroup
 		'run before the parameter changes, move/delete changed parameters!
 
 		initialName = parameter.Name
-		initialGroupName = parseGroupName(initialName)
+
+		if IsParameterGroupFormat(initialName) = false then
+			exit sub
+		end if
+
+		initialGroupName = ParseGroupName(initialName)
 		GetParamGroups(oDoc)
 
-		If StringContainsGroupName(initialName) = false Then
-			'msgbox("Exiting, StringContainsGroupName returned false")
-			Exit Sub
-		End If
-
-		If DoesGroupNameExist(initialGroupName) = false Then
-			'msgbox("Exiting, DoesGroupNameExist returned false")
+		If IsValidGroupName(initialName) = false Then
+''			'msgbox("Exiting, IsValidGroupName returned false")
 			Exit Sub
 		End If
 
@@ -111,18 +111,18 @@ Public Class updateParamGroup
 	Private Sub AfterParameterChange(oDoc As Inventor.Document, parameter As Inventor.Parameter)
 		'run after the parameter changes, create parameter groups if needed!
 		NewName = parameter.Name
-		NewGroupName = parseGroupName(NewName)
+
+		if IsParameterGroupFormat(initialName) = false then
+			exit sub
+		end if
+
+		NewGroupName = ParseGroupName(NewName)
 		GetParamGroups(oDoc)
 	
-		If StringContainsGroupName(NewName) = false Then
-''			msgbox("StringContainsGroupName = false, exiting...")
+		If IsValidGroupName(NewName) = false Then
+''			msgbox("IsValidGroupName = false, exiting...")
 			Exit Sub
 		End If
-
-		If DoesGroupNameExist(NewGroupName) = false Then
-''			msgbox("DoesGroupNameExist = false, exiting...")
-			Exit Sub
-		End If			
 
 		If DoesParameterExist(NewGroupName) = true Then
 ''			msgbox("DoesParameterExist(NewGroupName)= true, exiting...")
@@ -195,14 +195,6 @@ Public Class updateParamGroup
 		return false
 	End Function
 
-	Private Function DoesGroupNameExist(value as String) As Boolean
-		If value <> "" Then
-			return true
-		Else
-			return false
-		End If
-	End Function
-
 	Public Function DoesParameterExist(value As String) As Boolean
 		dim parameter As Inventor.Parameter
 
@@ -241,16 +233,24 @@ Public Class updateParamGroup
 		End If
 	End Function
 
-	Private Function parseGroupName(name As String)
-		Dim groupNameRegex As String = "^.+?(?=" & groupNameDelimiter & ")"
-		Dim groupName As String = Regex.Matches(name, groupNameRegex)(0).Value
-		Return groupName
+	Private Function ParseGroupName(name As String)
+		Dim x As integer = instr(name, groupNameDelimiter)
+		
+		if (x > 0) Then
+			return Left(name, x-1)
+		Else
+			return ""
+		end if
 	End Function
 
-	Private Function parseParamName(name As String)
-		Dim paramNameRegex As String = "(?<=^.+?" & groupNameDelimiter & ").+"
-		Dim paramName As String = Regex.Matches(name, paramNameRegex)(0).Value
-		Return paramName
+	Private Function IsParameterGroupFormat(name As String)
+		Dim x As integer = instr(name, groupNameDelimiter)
+
+		if (1 < x) And (x < name.Length) Then
+			return true
+		Else
+			return false
+		end if
 	End Function
 
 	Private Sub RemoveParameterFromGroup(name as String, group as CustomParameterGroup)
@@ -268,8 +268,8 @@ Public Class updateParamGroup
 		End Try
 	End Sub
 
-	Private Function StringContainsGroupName(value as String) As Boolean
-		Dim testValue As String = parseGroupName(value)
+	Private Function IsValidGroupName(value as String) As Boolean
+		Dim testValue As String = ParseGroupName(value)
 		If String.IsNullOrWhitespace(testValue) Then
 			return false
 		Else
