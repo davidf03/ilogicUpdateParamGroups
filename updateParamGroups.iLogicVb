@@ -19,9 +19,12 @@ Public Class updateParamGroup
 	Private NewGroupName As String
 	Private NewName As String
 	Private NewGroup As Inventor.CustomParameterGroup
+	Private Quiet As Boolean = False
 
 	Public Sub New()
 		addEventHandler()
+
+		RemoveEmptyGroups()
 	End Sub
 
 	Private Sub addEventHandler()
@@ -29,7 +32,18 @@ Public Class updateParamGroup
 		AddHandler oModelingEvents.OnParameterChange, AddressOf oModelingEvents_ParameterChange
 		AddHandler oModelingEvents.OnNewParameter, AddressOf oModelEvents_OnNewParameter
 
-		MessageBox.Show("Listening for parameter group changes")
+		If Me.Quiet = False Then MessageBox.Show("Listening for parameter group changes")
+	End Sub
+
+	Private Sub RemoveEmptyGroups()
+		GetParamGroups(InventorApp.Application.ActiveDocument)
+
+		Dim tempGroup As CustomParameterGroup
+		For Each tempGroup in paramGroups
+			If IsGroupEmpty(tempGroup) Then
+				DeleteGroup(tempGroup)
+			End If
+		Next
 	End Sub
 
 	Private Sub oModelingEvents_ParameterChange(
@@ -42,17 +56,21 @@ Public Class updateParamGroup
 	
 		Select Case BeforeOrAfter
 			Case kBefore
-				'MsgBox("kBefore")
-				BeforeParameterChange(oDoc, parameter)
+				initialName = parameter.Name
 
 			Case kAfter
-				'MsgBox("kAfter")
-				AfterParameterChange(oDoc, parameter)
-			
+				NewName = parameter.Name
+				
+				If HasGroupChanged = True Then
+					CleanupParameterGroup(oDoc)
+					EditParameterGroup(oDoc)
+				End If
+
 			Case Else
 				Exit Sub
 
 		End Select
+
 	End Sub
 
 	Private Sub oModelEvents_OnNewParameter(
@@ -65,11 +83,10 @@ Public Class updateParamGroup
 	
 		Select Case BeforeOrAfter
 			Case kBefore
-				'MsgBox("kBefore")
 
 			Case kAfter
-				'MsgBox("kAfter")
-				AfterParameterChange(oDoc, parameter)
+				NewName = parameter.Name
+				EditParameterGroup(oDoc)
 
 			Case Else
 				Exit Sub
@@ -77,10 +94,17 @@ Public Class updateParamGroup
 		End Select
 	End Sub
 
-	Private Sub BeforeParameterChange(oDoc As Inventor.Document, parameter As Inventor.Parameter)
-		'run before the parameter changes, move/delete changed parameters!
+	Private Function HasGroupChanged() As Boolean
 
-		initialName = parameter.Name
+		If ParseGroupName(initialName) <> ParseGroupName(NewName) Then
+			Return true
+		Else
+			Return false
+		End If
+
+	End Function
+
+	Private Sub CleanupParameterGroup(oDoc As Inventor.Document)
 
 		if IsParameterGroupFormat(initialName) = false then
 			exit sub
@@ -90,17 +114,16 @@ Public Class updateParamGroup
 		GetParamGroups(oDoc)
 
 		If IsValidGroupName(initialName) = false Then
-''			'msgbox("Exiting, IsValidGroupName returned false")
-			Exit Sub
-		End If
-
-		If DoesGroupContainParameter(initialName) = false Then
-			'msgbox("Exiting, DoesGroupContainParameter returned false")
 			Exit Sub
 		End If
 
 		initialGroup = GetGroupByName(initialGroupName)
-		RemoveParameterFromGroup(initialName, initialGroup)
+
+		If DoesGroupContainParameter(NewName, initialGroup) = false Then
+			Exit Sub
+		End If
+
+		RemoveParameterFromGroup(NewName, initialGroup)
 			
 		If IsGroupEmpty(initialGroup) Then
 			DeleteGroup(initialGroup)
@@ -108,11 +131,9 @@ Public Class updateParamGroup
 
 	End Sub
 
-	Private Sub AfterParameterChange(oDoc As Inventor.Document, parameter As Inventor.Parameter)
-		'run after the parameter changes, create parameter groups if needed!
-		NewName = parameter.Name
+	Private Sub EditParameterGroup(oDoc As Inventor.Document)
 
-		if IsParameterGroupFormat(initialName) = false then
+		if IsParameterGroupFormat(NewName) = false then
 			exit sub
 		end if
 
@@ -120,26 +141,22 @@ Public Class updateParamGroup
 		GetParamGroups(oDoc)
 	
 		If IsValidGroupName(NewName) = false Then
-''			msgbox("IsValidGroupName = false, exiting...")
 			Exit Sub
 		End If
 
 		If DoesParameterExist(NewGroupName) = true Then
-''			msgbox("DoesParameterExist(NewGroupName)= true, exiting...")
 			Exit Sub
 		End If
 
 		If DoesGroupExist(NewGroupName) = false Then
-''			msgbox("DoesGroupExist = false, addingGroup...")
 			AddGroup(NewGroupName)
 		End If
 	
 		NewGroup = GetGroupByName(NewGroupName)
 	
-		If DoesGroupContainParameter(NewName) = false Then
-''			msgbox("DoesGroupContainParameter = false, adding parameter to group...")
+		If DoesGroupContainParameter(NewName, NewGroup) = false Then
 			AddParameterToGroup(NewName, NewGroup)
-			msgBox("Added parameter " & NewName & " to " & NewGroupName)
+			If Me.Quiet = False Then MessageBox.Show("Added parameter " & NewName & " to " & NewGroupName)
 		End If
 
 		oDoc.Update()
@@ -170,8 +187,8 @@ Public Class updateParamGroup
 	End Sub
 
 	Private Function DoesGroupExist(value As String) As Boolean
-		dim group As Inventor.CustomParameterGroup
 
+		dim group As Inventor.CustomParameterGroup
 		for each group in paramGroups
 			if group.DisplayName = value Then
 				return true
@@ -181,23 +198,21 @@ Public Class updateParamGroup
 		return false
 	End Function
 
-	Private Function DoesGroupContainParameter(value As String) As Boolean
-		dim tempGroup As Inventor.CustomParameterGroup
+	Private Function DoesGroupContainParameter(value As String, tempGroup As CustomParameterGroup) As Boolean
+
 		dim tempParameter As Inventor.Parameter
-		for each tempGroup in paramGroups
-			for each tempParameter in tempGroup
-				if tempParameter.Name = value Then
-					return true
-				end If
-			next
+		for each tempParameter in tempGroup
+			if tempParameter.Name = value Then
+				return true
+			end If
 		next
 
 		return false
 	End Function
 
 	Public Function DoesParameterExist(value As String) As Boolean
-		dim parameter As Inventor.Parameter
 
+		dim parameter As Inventor.Parameter
 		for each parameter in oParameters
 			if parameter.Name = value then
 				return true
@@ -233,7 +248,7 @@ Public Class updateParamGroup
 		End If
 	End Function
 
-	Private Function ParseGroupName(name As String)
+	Private Function ParseGroupName(name As String) As String
 		Dim x As integer = instr(name, groupNameDelimiter)
 		
 		if (x > 0) Then
